@@ -16,11 +16,19 @@ import { Method, MethodsDefinition } from "./method";
 import { MiddlewareDefinition } from "./middleware";
 import { lastResortHandler, ResultHandlerDefinition } from "./result-handler";
 
-export type Handler<IN, OUT, OPT> = (params: {
-  input: IN;
-  options: OPT;
-  logger: Logger;
-}) => Promise<OUT>;
+type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends (
+  k: infer I
+) => void
+  ? I
+  : never;
+
+export type Handler<IN, OUT, OPT, Deps extends {} = {}> = (
+  params: {
+    input: IN;
+    options: OPT;
+    logger: Logger;
+  } & Deps
+) => Promise<OUT>;
 
 export abstract class AbstractEndpoint {
   public abstract execute(params: {
@@ -47,7 +55,8 @@ export type EndpointInput<T> = T extends Endpoint<
   any,
   any,
   any,
-  any
+  any,
+  infer _
 >
   ? z.input<Merge<IN, mIN>>
   : never;
@@ -59,7 +68,8 @@ export type EndpointOutput<T> = T extends Endpoint<
   any,
   any,
   any,
-  any
+  any,
+  infer _
 >
   ? z.output<OUT>
   : never;
@@ -88,15 +98,24 @@ type EndpointProps<
   OPT,
   M extends Method,
   POS extends ApiResponse,
-  NEG extends ApiResponse
+  NEG extends ApiResponse,
+  Deps extends readonly {}[]
 > = {
   middlewares: MiddlewareDefinition<any, any, any>[];
   inputSchema: IN;
   mimeTypes: string[];
   outputSchema: OUT;
-  handler: Handler<z.output<Merge<IN, MwIN>>, z.input<OUT>, OPT>;
+  handler: Handler<
+    z.output<Merge<IN, MwIN>>,
+    z.input<OUT>,
+    OPT,
+    UnionToIntersection<Deps[number]> extends {}
+      ? UnionToIntersection<Deps[number]>
+      : {}
+  >;
   resultHandler: ResultHandlerDefinition<POS, NEG>;
   description?: string;
+  dependancies: Deps;
 } & MethodsDefinition<M>;
 
 /** mIN, OPT - from Middlewares */
@@ -107,7 +126,8 @@ export class Endpoint<
   OPT,
   M extends Method,
   POS extends ApiResponse,
-  NEG extends ApiResponse
+  NEG extends ApiResponse,
+  Deps extends readonly {}[] = []
 > extends AbstractEndpoint {
   protected readonly description?: string;
   protected readonly methods: M[] = [];
@@ -115,10 +135,14 @@ export class Endpoint<
   protected readonly inputSchema: Merge<IN, MwIN>; // combined with middlewares input
   protected readonly mimeTypes: string[];
   protected readonly outputSchema: OUT;
+  protected readonly dependancies: Deps;
   protected readonly handler: Handler<
     z.output<Merge<IN, MwIN>>,
     z.input<OUT>,
-    OPT
+    OPT,
+    UnionToIntersection<Deps[number]> extends {}
+      ? UnionToIntersection<Deps[number]>
+      : never
   >;
   protected readonly resultHandler: ResultHandlerDefinition<POS, NEG>;
 
@@ -130,8 +154,9 @@ export class Endpoint<
     resultHandler,
     description,
     mimeTypes,
+    dependancies,
     ...rest
-  }: EndpointProps<IN, OUT, MwIN, OPT, M, POS, NEG>) {
+  }: EndpointProps<IN, OUT, MwIN, OPT, M, POS, NEG, Deps>) {
     super();
     this.middlewares = middlewares;
     this.inputSchema = combineEndpointAndMiddlewareInputSchemas<IN, MwIN>(
@@ -148,6 +173,7 @@ export class Endpoint<
     } else {
       this.methods = [rest.method];
     }
+    this.dependancies = dependancies;
   }
 
   public override getDescription() {
@@ -258,16 +284,25 @@ export class Endpoint<
     input,
     options,
     logger,
+    deps,
   }: {
     input: any;
     options: any;
     logger: Logger;
+    deps: UnionToIntersection<Deps[number]> extends {}
+      ? UnionToIntersection<Deps[number]>
+      : never;
   }) {
-    return this.handler({
-      input: this.inputSchema.parse(input), // final input types transformations for handler,
-      options,
-      logger,
-    });
+    return this.handler(
+      Object.assign(
+        {
+          input: this.inputSchema.parse(input), // final input types transformations for handler,
+          options,
+          logger,
+        },
+        deps
+      )
+    );
   }
 
   async #handleResult({
@@ -335,8 +370,19 @@ export class Endpoint<
       if (isStreamClosed) {
         return;
       }
+      const dependancies: UnionToIntersection<Deps[number]> extends {}
+        ? UnionToIntersection<Deps[number]>
+        : never = this.dependancies.reduce(
+        (acc, dep) => Object.assign(acc, dep),
+        {}
+      ) as any;
       output = this.#parseOutput(
-        await this.#parseAndRunHandler({ input, options, logger })
+        await this.#parseAndRunHandler({
+          input,
+          options,
+          logger,
+          deps: dependancies,
+        })
       );
     } catch (e) {
       if (e instanceof Error) {

@@ -17,7 +17,7 @@ describe("App", () => {
   beforeAll(() => {
     const routing = {
       v1: {
-        faulty: new EndpointsFactory(
+        faulty: EndpointsFactory.baseFactory(
           createResultHandler({
             getPositiveResponse: () => createApiResponse(z.object({})),
             getNegativeResponse: () => createApiResponse(z.object({})),
@@ -35,7 +35,7 @@ describe("App", () => {
             test: "Should not work",
           }),
         }),
-        test: new EndpointsFactory(defaultResultHandler)
+        test: EndpointsFactory.baseFactory(defaultResultHandler)
           .addMiddleware({
             input: z.object({
               key: z.string().refine((v) => v === "123", "Invalid key"),

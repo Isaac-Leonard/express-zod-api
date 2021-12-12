@@ -15,38 +15,68 @@ type BuildProps<
   OUT extends IOSchema,
   MwIN,
   MwOUT,
-  M extends Method
+  M extends Method,
+  Dependancies extends readonly {}[]
 > = {
   input: IN;
   output: OUT;
-  handler: Handler<z.output<Merge<IN, MwIN>>, z.input<OUT>, MwOUT>;
+  handler: Handler<
+    z.output<Merge<IN, MwIN>>,
+    z.input<OUT>,
+    MwOUT,
+    UnionToIntersection<Dependancies[number]> extends {}
+      ? UnionToIntersection<Dependancies[number]>
+      : {}
+  >;
   description?: string;
 } & MethodsDefinition<M>;
+
+type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends (
+  k: infer I
+) => void
+  ? I
+  : never;
 
 export class EndpointsFactory<
   MwIN,
   MwOUT,
   POS extends ApiResponse,
-  NEG extends ApiResponse
+  NEG extends ApiResponse,
+  Dependancies extends readonly {}[]
 > {
   protected middlewares: MiddlewareDefinition<any, any, any>[] = [];
-
-  constructor(protected resultHandler: ResultHandlerDefinition<POS, NEG>) {
+  constructor(
+    protected resultHandler: ResultHandlerDefinition<POS, NEG>,
+    protected dependancies: Dependancies
+  ) {
     this.resultHandler = resultHandler;
+    this.dependancies = dependancies;
+  }
+
+  static baseFactory<POS extends ApiResponse, NEG extends ApiResponse>(
+    resultHandler: ResultHandlerDefinition<POS, NEG>
+  ) {
+    return new EndpointsFactory(resultHandler, [] as const);
   }
 
   static #create<
     CrMwIN,
     CrMwOUT,
     CrPOS extends ApiResponse,
-    CrNEG extends ApiResponse
+    CrNEG extends ApiResponse,
+    Dependancies extends readonly {}[]
   >(
     middlewares: MiddlewareDefinition<any, any, any>[],
-    resultHandler: ResultHandlerDefinition<CrPOS, CrNEG>
+    resultHandler: ResultHandlerDefinition<CrPOS, CrNEG>,
+    dependancies: Dependancies
   ) {
-    const factory = new EndpointsFactory<CrMwIN, CrMwOUT, CrPOS, CrNEG>(
-      resultHandler
-    );
+    const factory = new EndpointsFactory<
+      CrMwIN,
+      CrMwOUT,
+      CrPOS,
+      CrNEG,
+      Dependancies
+    >(resultHandler, dependancies);
     factory.middlewares = middlewares;
     return factory;
   }
@@ -54,10 +84,34 @@ export class EndpointsFactory<
   public addMiddleware<IN extends IOSchema, OUT extends FlatObject>(
     definition: MiddlewareDefinition<IN, MwOUT, OUT>
   ) {
-    return EndpointsFactory.#create<Merge<IN, MwIN>, MwOUT & OUT, POS, NEG>(
+    return EndpointsFactory.#create<
+      Merge<IN, MwIN>,
+      MwOUT & OUT,
+      POS,
+      NEG,
+      Dependancies
+    >(
       this.middlewares.concat(definition),
-      this.resultHandler
+      this.resultHandler,
+      this.dependancies as any
     );
+  }
+
+  public addDependancy<
+    IN extends IOSchema,
+    OUT extends FlatObject,
+    NewDependancies extends {}
+  >(dependancies: NewDependancies) {
+    return EndpointsFactory.#create<
+      Merge<IN, MwIN>,
+      MwOUT & OUT,
+      POS,
+      NEG,
+      [...Dependancies, NewDependancies]
+    >(this.middlewares, this.resultHandler, [
+      ...this.dependancies,
+      dependancies,
+    ] as any);
   }
 
   public build<IN extends IOSchema, OUT extends IOSchema, M extends Method>({
@@ -66,8 +120,8 @@ export class EndpointsFactory<
     handler,
     description,
     ...rest
-  }: BuildProps<IN, OUT, MwIN, MwOUT, M>) {
-    return new Endpoint<IN, OUT, MwIN, MwOUT, M, POS, NEG>({
+  }: BuildProps<IN, OUT, MwIN, MwOUT, M, Dependancies>) {
+    return new Endpoint<IN, OUT, MwIN, MwOUT, M, POS, NEG, Dependancies>({
       handler,
       description,
       middlewares: this.middlewares,
@@ -75,11 +129,11 @@ export class EndpointsFactory<
       outputSchema: output,
       resultHandler: this.resultHandler,
       mimeTypes: hasUpload(input) ? [mimeMultipart] : [mimeJson],
+      dependancies: this.dependancies,
       ...rest,
     });
   }
 }
 
-export const defaultEndpointsFactory = new EndpointsFactory(
-  defaultResultHandler
-);
+export const defaultEndpointsFactory =
+  EndpointsFactory.baseFactory(defaultResultHandler);

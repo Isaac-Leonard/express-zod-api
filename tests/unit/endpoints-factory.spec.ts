@@ -11,7 +11,8 @@ describe("EndpointsFactory", () => {
     test("Should create the empty factory with result handler", () => {
       const resultHandlerMock = { handler: jest.fn() };
       const factory = new EndpointsFactory(
-        resultHandlerMock as unknown as ResultHandlerDefinition<any, any>
+        resultHandlerMock as unknown as ResultHandlerDefinition<any, any>,
+        []
       );
       expect(factory).toBeInstanceOf(EndpointsFactory);
       expect(factory["middlewares"]).toStrictEqual([]);
@@ -27,7 +28,8 @@ describe("EndpointsFactory", () => {
       });
       const resultHandlerMock = { handler: jest.fn() };
       const factory = new EndpointsFactory(
-        resultHandlerMock as unknown as ResultHandlerDefinition<any, any>
+        resultHandlerMock as unknown as ResultHandlerDefinition<any, any>,
+        []
       ).addMiddleware(middleware);
       expect(factory["middlewares"]).toStrictEqual([middleware]);
       expect(factory["resultHandler"]).toStrictEqual(resultHandlerMock);
@@ -38,7 +40,8 @@ describe("EndpointsFactory", () => {
     test("Should create a new factory with a middleware and the same result handler", () => {
       const resultHandlerMock = { handler: jest.fn() };
       const factory = new EndpointsFactory(
-        resultHandlerMock as unknown as ResultHandlerDefinition<any, any>
+        resultHandlerMock as unknown as ResultHandlerDefinition<any, any>,
+        []
       );
       const middleware = createMiddleware({
         input: z.object({
@@ -54,6 +57,21 @@ describe("EndpointsFactory", () => {
     });
   });
 
+  describe(".addDependancies()", () => {
+    test("Should create a new factory with a dependancy and the same result handler", () => {
+      const resultHandlerMock = { handler: jest.fn() };
+      const factory = new EndpointsFactory(
+        resultHandlerMock as unknown as ResultHandlerDefinition<any, any>,
+        []
+      );
+      const newFactory = factory.addDependancy({ test: jest.fn });
+      expect(factory["dependancies"]).toStrictEqual([]);
+      expect(factory["resultHandler"]).toStrictEqual(resultHandlerMock);
+      expect(newFactory["dependancies"]).toStrictEqual([{ test: jest.fn }]);
+      expect(newFactory["resultHandler"]).toStrictEqual(resultHandlerMock);
+    });
+  });
+
   describe(".build()", () => {
     test("Should create an endpoint with simple middleware", () => {
       const middleware = createMiddleware({
@@ -64,7 +82,8 @@ describe("EndpointsFactory", () => {
       });
       const resultHandlerMock = { handler: jest.fn() };
       const factory = new EndpointsFactory(
-        resultHandlerMock as unknown as ResultHandlerDefinition<any, any>
+        resultHandlerMock as unknown as ResultHandlerDefinition<any, any>,
+        []
       ).addMiddleware(middleware);
       const handlerMock = jest.fn();
       const endpoint = factory.build({
@@ -107,7 +126,8 @@ describe("EndpointsFactory", () => {
       });
       const resultHandlerMock = { handler: jest.fn() };
       const factory = new EndpointsFactory(
-        resultHandlerMock as unknown as ResultHandlerDefinition<any, any>
+        resultHandlerMock as unknown as ResultHandlerDefinition<any, any>,
+        []
       ).addMiddleware(middleware);
       const handlerMock = jest.fn();
       const endpoint = factory.build({
@@ -151,7 +171,8 @@ describe("EndpointsFactory", () => {
       });
       const resultHandlerMock = { handler: jest.fn() };
       const factory = new EndpointsFactory(
-        resultHandlerMock as unknown as ResultHandlerDefinition<any, any>
+        resultHandlerMock as unknown as ResultHandlerDefinition<any, any>,
+        []
       ).addMiddleware(middleware);
       const handlerMock = jest.fn().mockImplementation((params) => ({
         input: params.input,

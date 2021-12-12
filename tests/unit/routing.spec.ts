@@ -40,7 +40,7 @@ describe("Routing", () => {
         cors: true,
         startupLogo: false,
       };
-      const factory = new EndpointsFactory(defaultResultHandler);
+      const factory = EndpointsFactory.baseFactory(defaultResultHandler);
       const getEndpoint = factory.build({
         methods: ["get"],
         input: z.object({}),
@@ -95,7 +95,7 @@ describe("Routing", () => {
         cors: true,
         startupLogo: false,
       };
-      const factory = new EndpointsFactory(defaultResultHandler);
+      const factory = EndpointsFactory.baseFactory(defaultResultHandler);
       const getEndpoint = factory.build({
         methods: ["get"],
         input: z.object({}),
@@ -146,7 +146,9 @@ describe("Routing", () => {
     test("Should accept parameters", () => {
       const handlerMock = jest.fn();
       const configMock = { startupLogo: false };
-      const endpointMock = new EndpointsFactory(defaultResultHandler).build({
+      const endpointMock = EndpointsFactory.baseFactory(
+        defaultResultHandler
+      ).build({
         methods: ["get"],
         input: z.object({}),
         output: z.object({}),
@@ -172,7 +174,9 @@ describe("Routing", () => {
     test("Should handle empty paths and trim spaces", () => {
       const handlerMock = jest.fn();
       const configMock = { startupLogo: false };
-      const endpointMock = new EndpointsFactory(defaultResultHandler).build({
+      const endpointMock = EndpointsFactory.baseFactory(
+        defaultResultHandler
+      ).build({
         methods: ["get"],
         input: z.object({}),
         output: z.object({}),
@@ -202,7 +206,9 @@ describe("Routing", () => {
     test("Should throw an error in case of slashes in route", () => {
       const handlerMock = jest.fn();
       const configMock = { startupLogo: false };
-      const endpointMock = new EndpointsFactory(defaultResultHandler).build({
+      const endpointMock = EndpointsFactory.baseFactory(
+        defaultResultHandler
+      ).build({
         methods: ["get"],
         input: z.object({}),
         output: z.object({}),
@@ -237,7 +243,9 @@ describe("Routing", () => {
         .fn()
         .mockImplementationOnce(() => ({ result: true }));
       const configMock = { cors: true, startupLogo: false };
-      const setEndpoint = new EndpointsFactory(defaultResultHandler).build({
+      const setEndpoint = EndpointsFactory.baseFactory(
+        defaultResultHandler
+      ).build({
         methods: ["post"],
         input: z.object({
           test: z.number(),
@@ -310,7 +318,7 @@ describe("Routing", () => {
 
     test("should accept an endpoint with a corresponding method", () => {
       const instance = new DependsOnMethod({
-        post: new EndpointsFactory(defaultResultHandler).build({
+        post: EndpointsFactory.baseFactory(defaultResultHandler).build({
           method: "post",
           input: z.object({}),
           output: z.object({}),
@@ -322,12 +330,14 @@ describe("Routing", () => {
     });
 
     test("should accept an endpoint with additional methods", () => {
-      const endpoint = new EndpointsFactory(defaultResultHandler).build({
-        methods: ["get", "post"],
-        input: z.object({}),
-        output: z.object({}),
-        handler: async () => ({}),
-      });
+      const endpoint = EndpointsFactory.baseFactory(defaultResultHandler).build(
+        {
+          methods: ["get", "post"],
+          input: z.object({}),
+          output: z.object({}),
+          handler: async () => ({}),
+        }
+      );
       const instance = new DependsOnMethod({
         get: endpoint,
         post: endpoint,
@@ -338,12 +348,14 @@ describe("Routing", () => {
     });
 
     test("should throw an error if the endpoint does not have the corresponding method", () => {
-      const endpoint = new EndpointsFactory(defaultResultHandler).build({
-        methods: ["get", "patch"],
-        input: z.object({}),
-        output: z.object({}),
-        handler: async () => ({}),
-      });
+      const endpoint = EndpointsFactory.baseFactory(defaultResultHandler).build(
+        {
+          methods: ["get", "patch"],
+          input: z.object({}),
+          output: z.object({}),
+          handler: async () => ({}),
+        }
+      );
       expect(
         () =>
           new DependsOnMethod({

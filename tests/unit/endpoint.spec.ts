@@ -44,6 +44,7 @@ describe("Endpoint", () => {
           handler: jest.fn(),
         },
         middlewares: [],
+        dependancies: [],
       });
       expect(endpointMock.getMethods()).toEqual([
         "get",
@@ -67,6 +68,7 @@ describe("Endpoint", () => {
           handler: jest.fn(),
         },
         middlewares: [],
+        dependancies: [],
       });
       expect(endpointMock.getMethods()).toEqual(["patch"]);
     });
@@ -85,9 +87,9 @@ describe("Endpoint", () => {
         }),
         middleware: middlewareMock,
       });
-      const factory = new EndpointsFactory(defaultResultHandler).addMiddleware(
-        middlewareDefinitionMock
-      );
+      const factory = EndpointsFactory.baseFactory(
+        defaultResultHandler
+      ).addMiddleware(middlewareDefinitionMock);
       const handlerMock = jest
         .fn()
         .mockImplementationOnce(async ({ input, options }) => ({
@@ -162,6 +164,63 @@ describe("Endpoint", () => {
       });
     });
 
+    test("Should call handler with correct dependancies", async () => {
+      const dependancyMock = jest.fn();
+
+      const factory = EndpointsFactory.baseFactory(
+        defaultResultHandler
+      ).addDependancy({ dep: dependancyMock });
+
+      const handler = jest.fn().mockImplementationOnce(async ({ dep }) => {
+        dep("abc");
+        return { test: "xyz" };
+      });
+      const endpoint = factory.build({
+        methods: ["post"],
+        input: z.object({}),
+        output: z.object({
+          test: z.string(),
+        }),
+        handler: handler,
+      });
+      const requestMock = {
+        method: "POST",
+        header: jest.fn(() => mimeJson),
+        body: {},
+      };
+      const responseMock: Record<string, jest.Mock> = {
+        set: jest.fn().mockImplementation(() => responseMock),
+        status: jest.fn().mockImplementation(() => responseMock),
+        json: jest.fn().mockImplementation(() => responseMock),
+      };
+      const configMock = {
+        cors: true,
+      };
+      await endpoint.execute({
+        request: requestMock as unknown as Request,
+        response: responseMock as unknown as Response,
+        config: configMock as CommonConfig,
+        logger: loggerMock,
+      });
+      expect(dependancyMock).toBeCalledTimes(1);
+      expect(dependancyMock).toBeCalledWith("abc");
+      expect(handler).toBeCalledTimes(1);
+      expect(handler).toBeCalledWith({
+        input: {},
+        options: {},
+        logger: loggerMock,
+        dep: dependancyMock,
+      });
+      expect(loggerMock.error).toBeCalledTimes(0);
+      expect(responseMock.status).toBeCalledWith(200);
+      expect(responseMock.json).toBeCalledWith({
+        status: "success",
+        data: {
+          test: "xyz",
+        },
+      });
+    });
+
     test("should close the stream on OPTIONS request", async () => {
       const handlerMock = jest.fn();
       const endpoint = defaultEndpointsFactory.build({
@@ -212,7 +271,7 @@ describe("Endpoint", () => {
 
   describe("#parseOutput", () => {
     test("Should throw on output parsing non-Zod error", async () => {
-      const factory = new EndpointsFactory(defaultResultHandler);
+      const factory = EndpointsFactory.baseFactory(defaultResultHandler);
       const endpoint = factory.build({
         method: "post",
         input: z.object({}),
@@ -318,7 +377,7 @@ describe("Endpoint", () => {
 
   describe("#handleResult", () => {
     test("Should handle errors within ResultHandler", async () => {
-      const factory = new EndpointsFactory(
+      const factory = EndpointsFactory.baseFactory(
         createResultHandler({
           getPositiveResponse: () => createApiResponse(z.object({})),
           getNegativeResponse: () => createApiResponse(z.object({})),
@@ -370,7 +429,7 @@ describe("Endpoint", () => {
 
   describe(".getInputSchema()", () => {
     test("should return input schema", () => {
-      const factory = new EndpointsFactory(defaultResultHandler);
+      const factory = EndpointsFactory.baseFactory(defaultResultHandler);
       const input = z.object({
         something: z.number(),
       });
@@ -386,7 +445,7 @@ describe("Endpoint", () => {
 
   describe(".getOutputSchema()", () => {
     test("should return output schema", () => {
-      const factory = new EndpointsFactory(defaultResultHandler);
+      const factory = EndpointsFactory.baseFactory(defaultResultHandler);
       const output = z.object({
         something: z.number(),
       });
@@ -402,7 +461,7 @@ describe("Endpoint", () => {
 
   describe(".getPositiveResponseSchema()", () => {
     test("should return schema according to the result handler", () => {
-      const factory = new EndpointsFactory(defaultResultHandler);
+      const factory = EndpointsFactory.baseFactory(defaultResultHandler);
       const output = z.object({
         something: z.number(),
       });
@@ -420,7 +479,7 @@ describe("Endpoint", () => {
 
   describe(".getNegativeResponseSchema()", () => {
     test("should return the negative schema of the result handler", () => {
-      const factory = new EndpointsFactory(defaultResultHandler);
+      const factory = EndpointsFactory.baseFactory(defaultResultHandler);
       const output = z.object({
         something: z.number(),
       });
@@ -438,7 +497,7 @@ describe("Endpoint", () => {
 
   describe(".getPositiveMimeTypes()", () => {
     test("should return an array according to the result handler", () => {
-      const factory = new EndpointsFactory(defaultResultHandler);
+      const factory = EndpointsFactory.baseFactory(defaultResultHandler);
       const endpoint = factory.build({
         method: "get",
         input: z.object({}),
@@ -451,7 +510,7 @@ describe("Endpoint", () => {
 
   describe(".getNegativeMimeTypes()", () => {
     test("should return an array according to the result handler", () => {
-      const factory = new EndpointsFactory(defaultResultHandler);
+      const factory = EndpointsFactory.baseFactory(defaultResultHandler);
       const endpoint = factory.build({
         method: "get",
         input: z.object({}),
@@ -464,7 +523,7 @@ describe("Endpoint", () => {
 
   describe("EndpointInput<>", () => {
     test("should be the type of input schema before transformations", () => {
-      const factory = new EndpointsFactory(defaultResultHandler);
+      const factory = EndpointsFactory.baseFactory(defaultResultHandler);
       const input = z.object({
         something: z.number().transform((value) => `${value}`),
       });
@@ -481,7 +540,9 @@ describe("Endpoint", () => {
       const mInput = z.object({
         key: z.string(),
       });
-      const factory = new EndpointsFactory(defaultResultHandler).addMiddleware({
+      const factory = EndpointsFactory.baseFactory(
+        defaultResultHandler
+      ).addMiddleware({
         input: mInput,
         middleware: jest.fn(),
       });
@@ -512,7 +573,7 @@ describe("Endpoint", () => {
 
   describe("EndpointOutput<>", () => {
     test("should be the type of output schema after transformations", () => {
-      const factory = new EndpointsFactory(defaultResultHandler);
+      const factory = EndpointsFactory.baseFactory(defaultResultHandler);
       const output = z.object({
         something: z.number().transform((value) => `${value}`),
       });
@@ -528,7 +589,7 @@ describe("Endpoint", () => {
 
   describe("EndpointResponse<>", () => {
     test("should be the type declared in the result handler including positive and negative ones", () => {
-      const factory = new EndpointsFactory(defaultResultHandler);
+      const factory = EndpointsFactory.baseFactory(defaultResultHandler);
       const output = z.object({
         something: z.number().transform((value) => `${value}`),
       });

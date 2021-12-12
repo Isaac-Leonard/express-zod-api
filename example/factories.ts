@@ -12,7 +12,7 @@ import fs from "fs";
 export const keyAndTokenAuthenticatedEndpointsFactory =
   defaultEndpointsFactory.addMiddleware(authMiddleware);
 
-export const fileSendingEndpointsFactory = new EndpointsFactory(
+export const fileSendingEndpointsFactory = EndpointsFactory.baseFactory(
   createResultHandler({
     getPositiveResponse: () =>
       createApiResponse(z.string(), mime.getType("svg") || "image/svg+xml"),
@@ -32,7 +32,7 @@ export const fileSendingEndpointsFactory = new EndpointsFactory(
   })
 );
 
-export const fileStreamingEndpointsFactory = new EndpointsFactory(
+export const fileStreamingEndpointsFactory = EndpointsFactory.baseFactory(
   createResultHandler({
     getPositiveResponse: () => createApiResponse(z.file().binary(), "image/*"),
     getNegativeResponse: () =>
